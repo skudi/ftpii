@@ -1,0 +1,24 @@
+[submodule "libs/fst"]
+	path = libs/fst
+	url = git@github.com:skudi/wii-fst.git
+[submodule "libs/iospatch"]
+	path = libs/iospatch
+	url = git@github.com:skudi/wii-iospatch.git
+[submodule "libs/isfs"]
+	path = libs/isfs
+	url = git@github.com:skudi/wii-isfs.git
+[submodule "libs/iso"]
+	path = libs/iso
+	url = git@github.com:skudi/wii-iso.git
+[submodule "libs/nandimg"]
+	path = libs/nandimg
+	url = git@github.com:skudi/wii-nandimg.git
+[submodule "libs/otp"]
+	path = libs/otp
+	url = git@github.com:skudi/wii-otp.git
+[submodule "libs/seeprom"]
+	path = libs/seeprom
+	url = git@github.com:skudi/wii-seeprom.git
+[submodule "libs/wod"]
+	path = libs/wod
+	url = git@github.com:skudi/wii-wod.git
