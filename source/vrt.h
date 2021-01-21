@@ -26,7 +26,7 @@ misrepresented as being the original software.
 #define _VRT_H_
 
 #include <stdio.h>
-#include <sys/dir.h>
+#include <sys/dirent.h>
 
 char *to_real_path(char *virtual_cwd, char *virtual_path);
 
@@ -36,8 +36,8 @@ int vrt_chdir(char *cwd, char *path);
 int vrt_unlink(char *cwd, char *path);
 int vrt_mkdir(char *cwd, char *path, mode_t mode);
 int vrt_rename(char *cwd, char *from_path, char *to_path);
-DIR_ITER *vrt_diropen(char *cwd, char *path);
-int vrt_dirnext(DIR_ITER *iter, char *filename, struct stat *st);
-int vrt_dirclose(DIR_ITER *iter);
+DIR *vrt_opendir(char *cwd, char *path);
+struct dirent *vrt_readdir(DIR *dirp);
+int vrt_closedir(DIR *dirp);
 
 #endif /* _VRT_H_ */

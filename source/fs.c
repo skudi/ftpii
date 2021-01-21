@@ -28,7 +28,9 @@ misrepresented as being the original software.
 #include <iso/iso.h>
 #include <malloc.h>
 #include <nandimg/nandimg.h>
+#ifdef USENTFS
 #include <ntfs.h>
+#endif
 #include <ogc/lwp_watchdog.h>
 #include <ogc/mutex.h>
 #include <ogc/system.h>
@@ -40,6 +42,7 @@ misrepresented as being the original software.
 #include <stdio.h>
 #include <string.h>
 #include <sys/dir.h>
+#include <sys/param.h>
 #include <unistd.h>
 #include <wiiuse/wpad.h>
 #include <wod/wod.h>
@@ -98,9 +101,9 @@ static bool is_dvd(VIRTUAL_PARTITION *partition) {
 }
 
 bool mounted(VIRTUAL_PARTITION *partition) {
-    DIR_ITER *dir = diropen(partition->prefix);
+    DIR *dir = opendir(partition->prefix);
     if (dir) {
-        dirclose(dir);
+        closedir(dir);
         return true;
     }
     return false;
@@ -154,6 +157,7 @@ bool mount(VIRTUAL_PARTITION *partition) {
         if ((partition == PA_USB || partition->disc->shutdown()) & partition->disc->startup()) {
             if (fatMount(partition->mount_point, partition->disc, 0, CACHE_PAGES, CACHE_SECTORS_PER_PAGE)) {
                 success = true;
+#ifdef USENTFS
             } else {
                 sec_t *partitions = NULL;
                 int partition_count = ntfsFindPartitions(partition->disc, &partitions);
@@ -161,6 +165,7 @@ bool mount(VIRTUAL_PARTITION *partition) {
                     success = true;
                 }
                 if (partitions) free(partitions);
+#endif
             }
         } else if (is_gecko(partition) && retry_gecko) {
             retry_gecko = false;
@@ -198,7 +203,9 @@ bool unmount(VIRTUAL_PARTITION *partition) {
         if (!dvd_mountWait() && !dvd_last_access()) dvd_stop();
     } else if (is_fat(partition)) {
         fatUnmount(partition->prefix);
+#ifdef USENTFS
         ntfsUnmount(partition->mount_point, false);
+#endif
         success = true;
     } else if (partition == PA_NAND) {
         success = NANDIMG_Unmount();

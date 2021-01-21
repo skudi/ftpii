@@ -27,6 +27,7 @@ misrepresented as being the original software.
 #include <stdarg.h>
 #include <string.h>
 #include <sys/dir.h>
+#include <sys/param.h>
 #include <unistd.h>
 
 #include "fs.h"
@@ -238,46 +239,52 @@ int vrt_rename(char *cwd, char *from_path, char *to_path) {
 }
 
 /*
-    When in vfs-root this creates a fake DIR_ITER.
+    When in vfs-root this creates a fake DIR.
  */
-DIR_ITER *vrt_diropen(char *cwd, char *path) {
+DIR *vrt_opendir(char *cwd, char *path) {
     char *real_path = to_real_path(cwd, path);
     if (!real_path) return NULL;
     else if (!*real_path) {
         DIR_ITER *iter = malloc(sizeof(DIR_ITER));
         if (!iter) return NULL;
         iter->device = VRT_DEVICE_ID;
-        iter->dirStruct = 0;
-        return iter;
+				DIR *dirp = malloc(sizeof(DIR));
+        if (!dirp) {
+					free(iter);
+					return NULL;
+				}
+				dirp->dirData = iter;
+				dirp->position=0;
+        return dirp;
     }
     free(real_path);
-    return with_virtual_path(cwd, diropen, path, 0, NULL);
+    return with_virtual_path(cwd, opendir, path, 0, NULL);
 }
 
 /*
-    Yields virtual aliases when iter->device == VRT_DEVICE_ID.
+    Yields virtual aliases when dirp(DIR)->dirData(DIR_ITER)->device == VRT_DEVICE_ID.
  */
-int vrt_dirnext(DIR_ITER *iter, char *filename, struct stat *st) {
-    if (iter->device == VRT_DEVICE_ID) {
-        for (; (int)iter->dirStruct < MAX_VIRTUAL_PARTITIONS; iter->dirStruct++) {
-            VIRTUAL_PARTITION *partition = VIRTUAL_PARTITIONS + (int)iter->dirStruct;
+struct dirent *vrt_readdir(DIR *dirp) {
+    if (dirp->dirData->device == VRT_DEVICE_ID) {
+        for (; (int)dirp->position < MAX_VIRTUAL_PARTITIONS; dirp->position++) {
+            VIRTUAL_PARTITION *partition = VIRTUAL_PARTITIONS + (int)dirp->position;
             if (mounted(partition)) {
-                st->st_mode = S_IFDIR;
-                st->st_size = 0;
-                strcpy(filename, partition->alias + 1);
-                iter->dirStruct++;
-                return 0;
+                strcpy(dirp->fileData.d_name, partition->alias + 1);
+                dirp->position++;
+                dirp->fileData.d_ino = dirp->position;
+                return &(dirp->fileData);
             }
         }
-        return -1;
+        return NULL;
     }
-    return dirnext(iter, filename, st);
+    return readdir(dirp);
 }
 
-int vrt_dirclose(DIR_ITER *iter) {
-    if (iter->device == VRT_DEVICE_ID) {
-        free(iter);
+int vrt_closedir(DIR *dirp) {
+    if (dirp->dirData->device == VRT_DEVICE_ID) {
+        free(dirp->dirData);
+        free(dirp);
         return 0;
     }
-    return dirclose(iter);
+    return closedir(dirp);
 }

@@ -31,6 +31,7 @@ misrepresented as being the original software.
 #include <string.h>
 #include <sys/dir.h>
 #include <sys/fcntl.h>
+#include <sys/param.h>
 #include <unistd.h>
 
 #include "dvd.h"
@@ -196,7 +197,7 @@ static s32 ftp_TYPE(client_t *client, char *rest) {
         return write_reply(client, 501, "Syntax error in parameters.");
     }
     char msg[15];
-    sprintf(msg, "Type set to %s.", representation_type);
+    snprintf(msg, 15, "Type set to %s.", representation_type);
     return write_reply(client, 200, msg);
 }
 
@@ -387,35 +388,26 @@ static s32 prepare_data_connection(client_t *client, void *callback, void *arg, 
     return result;
 }
 
-static s32 send_nlst(s32 data_socket, DIR_ITER *dir) {
+static s32 send_list(s32 data_socket, DIR *dirp) {
     s32 result = 0;
-    char filename[MAXPATHLEN + 2];
-    struct stat st;
-    while (vrt_dirnext(dir, filename, &st) == 0) {
-        size_t end_index = strlen(filename);
-        filename[end_index] = CRLF[0];
-        filename[end_index + 1] = CRLF[1];
-        filename[end_index + 2] = '\0';
-        if ((result = send_exact(data_socket, filename, strlen(filename))) < 0) {
+    char line[NAME_MAX + 56 + CRLF_LENGTH + 1];
+		struct dirent *direntry;
+		struct stat st;
+    while ((direntry = vrt_readdir(dirp)) != NULL) {
+				//vrt_stat(client->cwd, direntry->d_name,&st); //TODO how to get CWD (full path)?
+        char timestamp[13];
+        strftime(timestamp, sizeof(timestamp), "%b %d  %Y", localtime(&st.st_ctime));
+        sprintf(line, "%crwxr-xr-x    1 0        0     %10llu %s %s\r\n", (S_ISDIR(st.st_mode)) ? 'd' : '-', st.st_size, timestamp, direntry->d_name);
+        if ((result = send_exact(data_socket, line, strlen(line))) < 0) {
             break;
         }
     }
     return result < 0 ? result : 0;
 }
 
-static s32 send_list(s32 data_socket, DIR_ITER *dir) {
+static s32 send_nlst(s32 data_socket, DIR *dirp) {
     s32 result = 0;
-    char filename[MAXPATHLEN];
-    struct stat st;
-    char line[MAXPATHLEN + 56 + CRLF_LENGTH + 1];
-    while (vrt_dirnext(dir, filename, &st) == 0) {
-        char timestamp[13];
-        strftime(timestamp, sizeof(timestamp), "%b %d  %Y", localtime(&st.st_mtime));
-        sprintf(line, "%crwxr-xr-x    1 0        0     %10llu %s %s\r\n", (st.st_mode & S_IFDIR) ? 'd' : '-', st.st_size, timestamp, filename);
-        if ((result = send_exact(data_socket, line, strlen(line))) < 0) {
-            break;
-        }
-    }
+		result = send_list(data_socket, dirp);
     return result < 0 ? result : 0;
 }
 
@@ -424,13 +416,13 @@ static s32 ftp_NLST(client_t *client, char *path) {
         path = ".";
     }
 
-    DIR_ITER *dir = vrt_diropen(client->cwd, path);
-    if (dir == NULL) {
+    DIR *dirp = vrt_opendir(client->cwd, path);
+    if (dirp == NULL) {
         return write_reply(client, 550, strerror(errno));
     }
 
-    s32 result = prepare_data_connection(client, send_nlst, dir, vrt_dirclose);
-    if (result < 0) vrt_dirclose(dir);
+    s32 result = prepare_data_connection(client, send_nlst, dirp, vrt_closedir);
+    if (result < 0) vrt_closedir(dirp);
     return result;
 }
 
@@ -447,13 +439,13 @@ static s32 ftp_LIST(client_t *client, char *path) {
         path = ".";
     }
 
-    DIR_ITER *dir = vrt_diropen(client->cwd, path);
+    DIR *dir = vrt_opendir(client->cwd, path);
     if (dir == NULL) {
         return write_reply(client, 550, strerror(errno));
     }
 
-    s32 result = prepare_data_connection(client, send_list, dir, vrt_dirclose);
-    if (result < 0) vrt_dirclose(dir);
+    s32 result = prepare_data_connection(client, send_list, dir, vrt_closedir);
+    if (result < 0) vrt_closedir(dir);
     return result;
 }
 
